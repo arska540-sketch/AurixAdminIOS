@@ -15,7 +15,7 @@ targets:
         excludes:
           - Web
     resources:
-      - path: AurixAdmin/Web
+      - path: AurixAdmin/Web/index.html
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: network.aurix.admin
