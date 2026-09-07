@@ -28,14 +28,19 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
 
       - name: Make IPA
         run: |
+          APP="build/Build/Products/Release-iphoneos/AurixAdmin.app"
+          mkdir -p "$APP/Web"
+          cp "AurixAdmin/Web/index.html" "$APP/Web/index.html"
+          test -s "$APP/Web/index.html"
+
           mkdir -p Payload
-          APP=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -1)
           cp -R "$APP" Payload/
-          zip -r AurixAdmin.ipa Payload
+          zip -qry AurixAdmin.ipa Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
