@@ -3,9 +3,18 @@ import WebKit
 
 struct ContentView: View {
     var body: some View {
-        AurixWebView()
-            .background(Color(red: 0.035, green: 0.051, blue: 0.075))
-            .ignoresSafeArea(.container, edges: .bottom)
+        ZStack {
+            Color(red: 0.035, green: 0.051, blue: 0.075)
+                .ignoresSafeArea()
+            VStack(spacing: 12) {
+                Text("Aurix Admin")
+                    .font(.largeTitle.bold())
+                Text("Loading control panel…")
+                    .foregroundStyle(.secondary)
+            }
+            AurixWebView()
+                .ignoresSafeArea(.container, edges: .bottom)
+        }
     }
 }
 
@@ -21,7 +30,8 @@ struct AurixWebView: UIViewRepresentable {
         view.navigationDelegate = context.coordinator
         view.scrollView.contentInsetAdjustmentBehavior = .never
         view.isOpaque = false
-        view.backgroundColor = UIColor(red: 0.035, green: 0.051, blue: 0.075, alpha: 1)
+        view.backgroundColor = .clear
+        view.scrollView.backgroundColor = .clear
 
         let page = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "Web")
             ?? Bundle.main.url(forResource: "index", withExtension: "html")
