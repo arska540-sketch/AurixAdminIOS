@@ -5,12 +5,14 @@ This is the real iPhone app project. GitHub uses a Mac to turn it into an IPA.
 
 BUILD THE IPA
 -------------
-1. Create a new EMPTY GitHub repository named AurixAdminIOS.
-2. Upload everything INSIDE this folder to the repository.
-3. Open the repository's Actions tab, select Build Aurix Admin IPA, and press
+1. Open the existing AurixAdminIOS GitHub repository.
+2. Replace the files with everything INSIDE this folder, including .github and tests.
+3. Open the repository's Actions tab, select Build IPA, and press
    Run workflow.
 4. When it finishes, open the run and download AurixAdmin-IPA under Artifacts.
-5. Unzip that download, then open AurixAdmin-unsigned.ipa with AltStore.
+5. Unzip that download, then open AurixAdmin.ipa with AltStore.
+
+See FIX-NOTES.md for the diagnosis, exact changes, and validation limits.
 
 The app uses the same Firebase accounts, messages, roles, controls, updates,
 announcements, and database as the website. It opens the Admin panel after an

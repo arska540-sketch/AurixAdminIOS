@@ -43,7 +43,7 @@
       <label for="loginName">Name</label><input id="loginName" class="field" maxlength="40" autocomplete="name" required>
       <label for="loginUsername">Username</label><input id="loginUsername" class="field" maxlength="24" autocomplete="username" required>
       <label for="loginPassword">Password</label><input id="loginPassword" class="field" type="password" minlength="6" autocomplete="current-password" required>
-      <button id="loginBtn" class="btn primary wide" type="submit">Login</button><button id="createBtn" class="linkBtn" type="button">Create account</button><div id="loginStatus" class="status badText"></div>
+      <button id="loginBtn" class="btn primary wide" type="submit" disabled>Login</button><button id="createBtn" class="linkBtn" type="button">Create account</button><div id="loginStatus" class="status badText" role="status" aria-live="polite">Connecting to sign-in service...</div><button id="retryStartup" class="linkBtn" type="button" hidden>Retry connection</button>
     </form>
   </section>
 
@@ -74,17 +74,30 @@
     <div id="gameModal" class="gameModal hidden" role="dialog" aria-modal="true" aria-labelledby="gameTitle"><div class="card gameWindow"><div class="gameWindowHead"><div id="gameTitle" class="panelTitle">Game</div><button id="closeGame" class="btn" aria-label="Close game">✕ Close</button></div><div id="gameArea" class="gameStage"></div></div></div>
   </main>
 
-  <script type="module">
-    import{initializeApp}from"https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
-    import{getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut,EmailAuthProvider,reauthenticateWithCredential,updateEmail,updatePassword}from"https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
-    import{getDatabase,ref,set,update,push,remove,get,onValue,onDisconnect,serverTimestamp,runTransaction}from"https://www.gstatic.com/firebasejs/12.17.1/firebase-database.js";
+  <script src="auth-support.js"></script>
+  <script>
+    // Runs even when the module/CDN cannot load. Prevent native form navigation.
+    document.getElementById("loginForm").addEventListener("submit", event => event.preventDefault());
+    document.getElementById("retryStartup").onclick = () => location.reload();
+    window.aurixStartupFailed = function () {
+      document.getElementById("loginBtn").disabled = true;
+      document.getElementById("loginStatus").textContent = "Aurix Admin could not load its sign-in service. Check your connection, then retry.";
+      document.getElementById("retryStartup").hidden = false;
+    };
+    window.aurixStartupTimer = setTimeout(window.aurixStartupFailed, 20000);
+  </script>
+  <script type="module" onerror="aurixStartupFailed()">
+    try {
+    const {initializeApp} = await import("https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js");
+    const {getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut,EmailAuthProvider,reauthenticateWithCredential,updateEmail,updatePassword} = await import("https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js");
+    const {getDatabase,ref,set,update,push,remove,get,onValue,onDisconnect,serverTimestamp,runTransaction} = await import("https://www.gstatic.com/firebasejs/12.17.1/firebase-database.js");
     const cfg={apiKey:"AIzaSyC3YDRMSfF_ucQUSCt2lQR5FqTo1H2B42M",authDomain:"aurix-c58c0.firebaseapp.com",databaseURL:"https://aurix-c58c0-default-rtdb.firebaseio.com",projectId:"aurix-c58c0",storageBucket:"aurix-c58c0.firebasestorage.app",messagingSenderId:"578909907647",appId:"1:578909907647:web:da47a3ed0891ff9d16740a"};
     const app=initializeApp(cfg),auth=getAuth(app),db=getDatabase(app),$=id=>document.getElementById(id);
     let user=null,profile=null,role="user",settings={brokenUntil:0,slowModeMs:0,filterEnabled:false,filterWords:""},replyTarget=null,adminReplyTarget=null,currentAdminThread=null,currentDirectUser=null,currentChatType="support",currentConversationKey="",inboxLoaded=false,lastSentAt=0,adminUnread=0,directUnread=0,unsubs=[],chatUnsubs=[],toastTimer,typingTimer,announcementTimer,scheduledTimers=[];
     const defaults=["fuck","fucking","fucker","bitch","shit","asshole","cunt","bastard"];
-    const isStaff=()=>role==="admin"||role==="owner",isOwner=()=>role==="owner",emailFor=u=>{u=u.trim().toLowerCase();if(!/^[a-z0-9_.-]{3,24}$/.test(u))throw Error("Username must be 3-24 letters, numbers, dots, dashes, or underscores.");return u+"@aurix.local"};
+    const isStaff=()=>role==="admin"||role==="owner",isOwner=()=>role==="owner",emailFor=u=>{u=u.trim().toLowerCase();if(!/^[a-z0-9_.-]{3,24}$/.test(u))throw {code:"app/invalid-username"};return u+"@aurix.local"};
     function toast(text,bad=false){const el=$("toast");el.textContent=text;el.style.color=bad?"var(--bad)":"var(--text)";el.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove("show"),2300)}
-    function friendly(e){const c=e?.code||"";if(c.includes("invalid-credential"))return"Wrong username or password.";if(c.includes("email-already-in-use"))return"That username is taken.";if(c.includes("requires-recent-login"))return"Enter your current password and try again.";if(c.includes("weak-password"))return"New password needs at least 6 characters.";if(c.includes("operation-not-allowed"))return"Enable Email/Password in Firebase Authentication.";return e?.message?.replace("Firebase: ","")||"Something went wrong."}
+    const friendly = window.AurixAuthSupport.friendly;
     function durationMs(value,allowNone=false){value=value.trim().toLowerCase();if(allowNone&&["none","off","0"].includes(value))return 0;const m=value.match(/^(\d+)(s|m|h|d)$/);if(!m)return null;return Number(m[1])*({s:1000,m:60000,h:3600000,d:86400000}[m[2]])}
     function mask(text){if(!settings.filterEnabled)return text;const words=[...defaults,...String(settings.filterWords||"").split(",")].map(x=>x.trim()).filter(Boolean).sort((a,b)=>b.length-a.length);let out=text;for(const word of words){const safe=word.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");out=out.replace(new RegExp(`\\b${safe}\\b`,"gi"),m=>m[0]+"*".repeat(Math.max(2,m.length-1)))}return out}
     function time(ts){if(!ts)return"Sending...";const d=new Date(ts),today=new Date();return d.toDateString()===today.toDateString()?`Today at ${d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}`:d.toLocaleString()}
@@ -101,7 +114,7 @@
 
     $("loginForm").onsubmit=async e=>{e.preventDefault();await login(false)};$("createBtn").onclick=()=>login(true);$("logoutBtn").onclick=()=>signOut(auth);
     async function login(create){const btn=$("loginBtn"),status=$("loginStatus");if(!$("loginForm").reportValidity())return;btn.disabled=true;status.textContent="";try{const username=$("loginUsername").value.trim().toLowerCase(),result=create?await createUserWithEmailAndPassword(auth,emailFor(username),$("loginPassword").value):await signInWithEmailAndPassword(auth,emailFor(username),$("loginPassword").value);profile={name:$("loginName").value.trim(),username,theme:"dark",createdAt:Date.now(),updatedAt:Date.now()};if(create)await set(ref(db,`profiles/${result.user.uid}`),profile);else await update(ref(db,`profiles/${result.user.uid}`),{name:profile.name,username,updatedAt:Date.now()})}catch(e){status.textContent=friendly(e)}finally{btn.disabled=false}}
-    onAuthStateChanged(auth,async u=>{clearListeners();if(!u){user=null;profile=null;role="user";$("app").classList.remove("open");$("loginScreen").classList.remove("hidden");return}user=u;try{const [p,r,b]=await Promise.all([get(ref(db,`profiles/${u.uid}`)),get(ref(db,`admins/${u.uid}`)),get(ref(db,`bans/${u.uid}`))]);profile=p.val()||{name:"User",username:u.email.split("@")[0],theme:"dark"};role=roleOf(r.val());if(b.val()?.active){toast("This account is banned.",true);await signOut(auth);return}}catch(e){toast("Could not load account.",true);return}$("identity").textContent=`${profile.name}  @${profile.username}`;$("roleBadge").textContent=role[0].toUpperCase()+role.slice(1);$("adminTopBtn").classList.toggle("hidden",!isStaff());$("adminConversation").textContent=isStaff()?"Admin Chat":"Admin Support";$("accountName").value=profile.name;$("accountUsername").value=profile.username;applyTheme(profile.theme||localStorage.getItem("aurixTheme")||"dark");loadWallpaper();$("loginScreen").classList.add("hidden");$("app").classList.add("open");startCoreListeners();setupPresence();if(isStaff())showPage("adminPage");else{showPage("homePage");toast("This app requires an Admin or Owner account.",true)}});
+    onAuthStateChanged(auth,async u=>{clearListeners();if(!u){user=null;profile=null;role="user";$("app").classList.remove("open");$("loginScreen").classList.remove("hidden");return}user=u;try{const [p,r,b]=await Promise.all([get(ref(db,`profiles/${u.uid}`)),get(ref(db,`admins/${u.uid}`)),get(ref(db,`bans/${u.uid}`))]);profile=p.val()||{name:"User",username:u.email.split("@")[0],theme:"dark"};role=roleOf(r.val());if(b.val()?.active){toast("This account is banned.",true);await signOut(auth);return}}catch(e){user=null;profile=null;role="user";$("app").classList.remove("open");$("loginScreen").classList.remove("hidden");try{await signOut(auth)}catch{}$("loginStatus").textContent="Could not load account. "+friendly(e);return}$("identity").textContent=`${profile.name}  @${profile.username}`;$("roleBadge").textContent=role[0].toUpperCase()+role.slice(1);$("adminTopBtn").classList.toggle("hidden",!isStaff());$("adminConversation").textContent=isStaff()?"Admin Chat":"Admin Support";$("accountName").value=profile.name;$("accountUsername").value=profile.username;applyTheme(profile.theme||localStorage.getItem("aurixTheme")||"dark");loadWallpaper();$("loginScreen").classList.add("hidden");$("app").classList.add("open");startCoreListeners();setupPresence();if(isStaff())showPage("adminPage");else{showPage("homePage");toast("This app requires an Admin or Owner account.",true)}});
 
     document.querySelectorAll("[data-page]").forEach(b=>b.onclick=()=>showPage(b.dataset.page));
     function showPage(id){if(id==="adminPage"&&!isStaff()){toast("Admin access required.",true);return}document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));document.querySelectorAll(".topNav").forEach(b=>b.classList.toggle("active",b.dataset.page===id));if(id==="inboxPage")openInbox();if(id==="adminPage")loadAdminPanel()}
@@ -151,7 +164,7 @@
     document.querySelectorAll("[data-wallpaper]").forEach(button=>button.onclick=()=>{const name=button.dataset.wallpaper;localStorage.removeItem(wallpaperKey("custom"));localStorage.setItem(wallpaperKey("preset"),name);applyWallpaper(name);$("backgroundStatus").textContent=`${button.textContent} background selected.`;$("backgroundStatus").className="status goodText"});
     $("backgroundUpload").onchange=e=>saveBackgroundImage(e.target.files?.[0]);
     $("removeBackground").onclick=()=>{localStorage.removeItem(wallpaperKey("custom"));localStorage.setItem(wallpaperKey("preset"),"aurix");applyWallpaper("aurix");$("backgroundUpload").value="";$("backgroundStatus").textContent="Background reset.";$("backgroundStatus").className="status goodText"};
-    $("saveAccount").onclick=async()=>{const status=$("accountStatus"),name=$("accountName").value.trim(),username=$("accountUsername").value.trim().toLowerCase(),current=$("currentPassword").value,next=$("newPassword").value;status.textContent="";try{if(!name)throw Error("Name is required.");if(username!==profile.username||next){if(!current)throw Error("Enter your current password.");await reauthenticateWithCredential(user,EmailAuthProvider.credential(user.email,current))}if(username!==profile.username)await updateEmail(user,emailFor(username));if(next)await updatePassword(user,next);await update(ref(db,`profiles/${user.uid}`),{name,username,updatedAt:Date.now()});profile={...profile,name,username};$("identity").textContent=`${name}  @${username}`;$("currentPassword").value=$("newPassword").value="";status.textContent="Account updated.";status.className="status goodText"}catch(e){status.textContent=friendly(e);status.className="status badText"}};
+    $("saveAccount").onclick=async()=>{const status=$("accountStatus"),name=$("accountName").value.trim(),username=$("accountUsername").value.trim().toLowerCase(),current=$("currentPassword").value,next=$("newPassword").value;status.textContent="";try{if(!name)throw {code:"app/name-required"};if(username!==profile.username||next){if(!current)throw Error("Enter your current password.");await reauthenticateWithCredential(user,EmailAuthProvider.credential(user.email,current))}if(username!==profile.username)await updateEmail(user,emailFor(username));if(next)await updatePassword(user,next);await update(ref(db,`profiles/${user.uid}`),{name,username,updatedAt:Date.now()});profile={...profile,name,username};$("identity").textContent=`${name}  @${username}`;$("currentPassword").value=$("newPassword").value="";status.textContent="Account updated.";status.className="status goodText"}catch(e){status.textContent=friendly(e);status.className="status badText"}};
 
     function renderChatStatus(){const broken=settings.brokenUntil>Date.now();$("globalChatStatus").textContent=broken?`Disabled until ${time(settings.brokenUntil)}`:"Online";$("globalChatBadge").style.color=broken?"var(--warn)":"var(--good)";$("homeMessage").placeholder=broken?"Chatting is temporarily disabled.":"Type something..."}
     function formatDuration(ms){if(ms%86400000===0)return ms/86400000+"d";if(ms%3600000===0)return ms/3600000+"h";if(ms%60000===0)return ms/60000+"m";return Math.ceil(ms/1000)+"s"}
@@ -187,6 +200,14 @@
     $("breakChat").onclick=async()=>{const ms=durationMs($("breakDuration").value);if(ms===null){toast("Use 1s, 2m, 3h, or 4d.",true);return}await update(ref(db,"settings"),{brokenUntil:Date.now()+ms,changedBy:user.uid,changedAt:Date.now()});await audit("break_chat","",formatDuration(ms));$("chatControlStatus").textContent="Chat disabled globally."};$("fixChat").onclick=async()=>{await update(ref(db,"settings"),{brokenUntil:0,changedBy:user.uid,changedAt:Date.now()});await audit("fix_chat");$("chatControlStatus").textContent="Chat fixed globally."};
     $("saveSlow").onclick=async()=>{const ms=durationMs($("slowDuration").value,true);if(ms===null||ms>3600000){toast("Use none or a duration up to 1h.",true);return}await update(ref(db,"settings"),{slowModeMs:ms,changedBy:user.uid,changedAt:Date.now()});await audit("slow_mode","",ms?formatDuration(ms):"none");$("slowStatus").textContent="Slow mode saved."};
     $("filterToggle").onclick=()=>$("filterToggle").classList.toggle("on");$("saveFilter").onclick=async()=>{await update(ref(db,"settings"),{filterEnabled:$("filterToggle").classList.contains("on"),filterWords:$("filterWords").value.trim(),changedBy:user.uid,changedAt:Date.now()});await audit("filter_update","",$("filterToggle").classList.contains("on")?"enabled":"disabled");$("filterStatus").textContent="Filter saved."};
+    clearTimeout(window.aurixStartupTimer);
+    $("loginBtn").disabled = false;
+    $("loginStatus").textContent = "";
+    $("retryStartup").hidden = true;
+    } catch {
+      clearTimeout(window.aurixStartupTimer);
+      window.aurixStartupFailed();
+    }
   </script>
 </body>
 </html>
