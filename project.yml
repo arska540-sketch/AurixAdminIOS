@@ -14,9 +14,8 @@ targets:
       - path: AurixAdmin
         excludes:
           - Web
+    resources:
       - path: AurixAdmin/Web
-        type: folder
-        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: network.aurix.admin

@@ -25,7 +25,6 @@ struct AurixWebView: UIViewRepresentable {
 
         guard let page = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "Web")
                 ?? Bundle.main.url(forResource: "index", withExtension: "html") else {
-            view.loadHTMLString("<meta name='viewport' content='width=device-width'><h1>Aurix Admin could not start</h1><p>This installation is missing its web resources. Install a newly rebuilt IPA.</p>", baseURL: nil)
             return view
         }
         view.loadFileURL(page, allowingReadAccessTo: page.deletingLastPathComponent())
